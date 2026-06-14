@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профессиональный HTML/CSS Тренажер</title>
+    
+    <!-- CodeMirror стили -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            background-color: #282a36;
+            color: white;
+            overflow: hidden;
+        }
+        .toolbar {
+            padding: 15px 20px;
+            background-color: #1e1f29;
+            border-bottom: 1px solid #44475a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .toolbar h2 { font-size: 18px; color: #f8f8f2; }
+        .toolbar-buttons { display: flex; gap: 10px; }
+        
+        .btn {
+            border: none;
+            padding: 8px 20px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-run { background-color: #50fa7b; color: #282a36; }
+        .btn-run:hover { background-color: #40c963; transform: translateY(-1px); }
+        
+        .btn-save { background-color: #bd93f9; color: #282a36; }
+        .btn-save:hover { background-color: #a578ea; transform: translateY(-1px); }
+
+        .workspace { 
+            display: flex; 
+            flex: 1; 
+            overflow: hidden;
+            position: relative;
+        }
+        .editors-pane { 
+            width: 50%; 
+            display: flex; 
+            flex-direction: column; 
+            min-width: 200px;
+        }
+        .editor-container { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+        .editor-label {
+            padding: 8px 12px;
+            background: #44475a;
+            font-size: 12px;
+            font-weight: bold;
+            color: #f8f8f2;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+        .CodeMirror {
+            flex: 1;
+            height: 100% !important;
+            font-size: 14px;
+        }
+        
+        /* Вертикальный разделитель (между кодом и результатом) */
+        .resizer-v {
+            width: 8px;
+            background-color: #1e1f29;
+            cursor: col-resize;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .resizer-v:hover, .resizer-v.active { background-color: #50fa7b; }
+        .resizer-v::after { content: "⋮"; color: #6272a4; font-size: 14px; }
+
+        /* Горизонтальный разделитель (между HTML и CSS) */
+        .resizer-h {
+            height: 8px;
+            background-color: #1e1f29;
+            cursor: row-resize;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .resizer-h:hover, .resizer-h.active { background-color: #50fa7b; }
+        .resizer-h::after { content: "⋯"; color: #6272a4; font-size: 14px; }
+
+        .preview-pane { 
+            flex: 1; 
+            background: white; 
+            min-width: 200px;
+        }
+        iframe { width: 100%; height: 100%; border: none; }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <h2>Code Trainer (Yatis и Co.)</h2>
+        <div class="toolbar-buttons">
+            <button class="btn btn-save" onclick="saveToFile()">💾 Сохранить</button>
+            <button class="btn btn-run" onclick="updatePreview()">▶ Запустить код</button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="editors-pane" id="editorsPane">
+            <div class="editor-container" id="htmlContainer">
+                <div class="editor-label">HTML</div>
+                <textarea id="htmlCode"></textarea>
+            </div>
+            
+            <!-- Горизонтальный разделитель -->
+            <div class="resizer-h" id="resizeHorizontal"></div>
+            
+            <div class="editor-container" id="cssContainer">
+                <div class="editor-label">CSS</div>
+                <textarea id="cssCode"></textarea>
+            </div>
+        </div>
+
+        <!-- Вертикальный разделитель -->
+        <div class="resizer-v" id="resizeVertical"></div>
+
+        <div class="preview-pane">
+            <iframe id="preview" sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+    </div>
+
+    <!-- Скрипты CodeMirror -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/htmlmixed/htmlmixed.min.js"></script>
+
+    <script>
+        // 1. Инициализация редакторов
+        const htmlEditor = CodeMirror.fromTextArea(document.getElementById("htmlCode"), {
+            mode: "htmlmixed", theme: "dracula", lineNumbers: true, autoCloseTags: true, autoCloseBrackets: true
+        });
+        const cssEditor = CodeMirror.fromTextArea(document.getElementById("cssCode"), {
+            mode: "css", theme: "dracula", lineNumbers: true, autoCloseBrackets: true
+        });
+
+        // Оставляем редакторы пустыми при старте
+        htmlEditor.setValue("");
+        cssEditor.setValue("");
+
+        // 2. Функция обновления предпросмотра (вызывается ТОЛЬКО по кнопке)
+        function updatePreview() {
+            const html = htmlEditor.getValue().trim();
+            const css = cssEditor.getValue().trim();
+            const doc = document.getElementById('preview').contentDocument || document.getElementById('preview').contentWindow.document;
+            
+            doc.open();
+            
+            // Если оба редактора пустые, показываем приветствие
+            if (html === "" && css === "") {
+                doc.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <style>
+                            body { 
+                                font-family: 'Segoe UI', sans-serif; 
+                                display: flex; 
+                                align-items: center; 
+                                justify-content: center; 
+                                height: 100vh; 
+                                margin: 0; 
+                                background: #f8f9fa; 
+                                color: #333; 
+                                text-align: center; 
+                            }
+                            .greeting { animation: fadeIn 0.8s ease; }
+                            .greeting h1 { color: #4361ee; margin-bottom: 10px; }
+                            .greeting p { color: #6c757d; font-size: 18px; }
+                            @keyframes fadeIn { 
+                                from { opacity: 0; transform: translateY(10px); } 
+                                to { opacity: 1; transform: translateY(0); } 
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="greeting">
+                            <h1>Привет! 👋</h1>
+                            <p>Напиши код в редакторе и нажми<br><strong>"▶ Запустить код"</strong></p>
+                        </div>
+                    </body>
+                    </html>
+                `);
+            } else {
+                // Иначе показываем код пользователя
+                doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${html}</body></html>`);
+            }
+            doc.close();
+        }
+        
+        // Первичный запуск при открытии страницы (покажет приветствие)
+        updatePreview();
+        
+        // АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ ПРИ ВВОДЕ УБРАНО. 
+        // Теперь результат появляется только после нажатия кнопки "Запустить код"!
+
+        // 3. Логика изменения размеров (Resizers)
+        const vResizer = document.getElementById('resizeVertical');
+        const hResizer = document.getElementById('resizeHorizontal');
+        const editorsPane = document.getElementById('editorsPane');
+        const htmlContainer = document.getElementById('htmlContainer');
+        const workspace = document.querySelector('.workspace');
+
+        let isResizingV = false;
+        let isResizingH = false;
+
+        vResizer.addEventListener('mousedown', (e) => {
+            isResizingV = true; vResizer.classList.add('active'); document.body.style.cursor = 'col-resize'; e.preventDefault();
+        });
+        hResizer.addEventListener('mousedown', (e) => {
+            isResizingH = true; hResizer.classList.add('active'); document.body.style.cursor = 'row-resize'; e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isResizingV) {
+                const newWidth = e.clientX - workspace.getBoundingClientRect().left;
+                if (newWidth > 200 && newWidth < workspace.offsetWidth - 200) {
+                    editorsPane.style.width = `${newWidth}px`;
+                }
+                htmlEditor.refresh(); cssEditor.refresh();
+            }
+            if (isResizingH) {
+                const paneRect = editorsPane.getBoundingClientRect();
+                const newHeight = e.clientY - paneRect.top;
+                if (newHeight > 100 && newHeight < editorsPane.offsetHeight - 100) {
+                    htmlContainer.style.height = `${newHeight}px`;
+                    htmlContainer.style.flex = 'none';
+                }
+                htmlEditor.refresh(); cssEditor.refresh();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizingV) { isResizingV = false; vResizer.classList.remove('active'); document.body.style.cursor = 'default'; }
+            if (isResizingH) { isResizingH = false; hResizer.classList.remove('active'); document.body.style.cursor = 'default'; }
+        });
+
+        // 4. Функция сохранения файла на компьютер
+        function saveToFile() {
+            const html = htmlEditor.getValue();
+            const css = cssEditor.getValue();
+            
+            const fullContent = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моя страница</title>
+    <style>
+${css}
+    </style>
+</head>
+<body>
+${html}
+</body>
+</html>`;
+
+            const blob = new Blob([fullContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'my_web_page.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
